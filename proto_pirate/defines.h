@@ -23,7 +23,7 @@
 #endif
 
 //Do we want the FALs packaged inside the app or not?
-#define EMBEDDED_FALS
+// #define EMBEDDED_FALS
 
 // ****Add logs back for debugging and reporting problems ****
 #define REMOVE_LOGS
