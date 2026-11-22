@@ -23,7 +23,7 @@ jobs:
       - name: "Checkout firmware"
         uses: actions/checkout@v4
         with:
-          repository: Next-Flip/Momentum-Firmware
+          repository: momentum-dx/Momentum-Firmware-dx
           fetch-depth: 1
           ref: dev
           submodules: recursive
