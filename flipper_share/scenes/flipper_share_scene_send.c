@@ -22,6 +22,7 @@ static void update_timer_callback(void* context);
 
 static FileReadingState* file_reading_state_alloc() {
     FileReadingState* state = malloc(sizeof(FileReadingState));
+    if(!state) return NULL;
     state->counter = 0;
     state->reading_complete = false;
     state->worker_thread = NULL;
@@ -41,7 +42,10 @@ static int32_t file_read_worker_thread(void* context) {
 
     bool is_running = true;
 
-    fs_init_from_external_transmit(app->selected_file_path);
+    if(!fs_init_from_external_transmit(app->selected_file_path)) {
+        // cancelled while hashing or failed to open — nothing to send
+        return 0;
+    }
 
     state->counter = g.s_file_size;
 
@@ -51,7 +55,7 @@ static int32_t file_read_worker_thread(void* context) {
         furi_delay_ms(FS_IDLE_OPERATION);
 
         // Check if we should stop
-        if(furi_thread_flags_get() & 0x1) {
+        if(furi_thread_flags_get() & FS_WORKER_STOP_FLAG) {
             is_running = false;
         }
     }
@@ -64,12 +68,19 @@ static int32_t file_read_worker_thread(void* context) {
 void flipper_share_scene_send_on_enter(void* context) {
     FlipperShareApp* app = context;
 
+    // Create the shared-state lock BEFORE starting the worker/radio threads.
+    fs_lock_ensure();
+
     // Create state for the scene
     FileReadingState* state = file_reading_state_alloc();
+    if(!state) {
+        FURI_LOG_E(TAG, "send_on_enter: out of memory");
+        return;
+    }
     app->file_reading_state = state;
 
     // Setup dialog to show progress
-    dialog_ex_set_header(app->dialog_show_file, "Sending...", 64, 10, AlignCenter, AlignCenter);
+    dialog_ex_set_header(app->dialog_show_file, "Sending via Sub-GHz...", 64, SCENE_HEADER_POSITION_Y, AlignCenter, AlignTop);
     dialog_ex_set_text(app->dialog_show_file, "Starting...", 64, 32, AlignCenter, AlignCenter);
     dialog_ex_set_left_button_text(app->dialog_show_file, "Cancel");
     dialog_ex_set_right_button_text(app->dialog_show_file, NULL); // Skip right button
@@ -88,7 +99,7 @@ void flipper_share_scene_send_on_enter(void* context) {
 
     // Start timer for updating display
     app->timer = furi_timer_alloc(update_timer_callback, FuriTimerTypePeriodic, app);
-    furi_timer_start(app->timer, 250);
+    furi_timer_start(app->timer, SCENE_UI_UPDATE_PERIOD_MS);
 
     ss_subghz_init(); // TODO Move to thread?
 }
@@ -106,50 +117,62 @@ static void dialog_ex_callback(DialogExResult result, void* context) {
 static void update_timer_callback(void* context) {
     furi_assert(context);
     FlipperShareApp* app = context;
-
     FileReadingState* state = (FileReadingState*)app->file_reading_state;
+    if(!state) return;
 
-    char progress_text[255];
-    if(state) {
-        if(state->reading_complete) {
+    char progress_text[128];
+
+    if(state->reading_complete) {
+        snprintf(progress_text, sizeof(progress_text), "Complete! %lu bytes read", state->counter);
+        dialog_ex_set_right_button_text(app->dialog_show_file, "OK");
+    } else {
+        // While fs_init hashes the file (chunked MD5) show its progress; the
+        // regular name/size/ETA text takes over once the hash completes.
+        uint32_t hash_done, hash_total;
+        if(!fs_hash_progress_get(&hash_done, &hash_total)) return;
+        if(hash_total > 0 && hash_done < hash_total) {
             snprintf(
-                progress_text, sizeof(progress_text), "Complete! %lu bytes read", state->counter);
-
-            dialog_ex_set_right_button_text(app->dialog_show_file, "OK");
-        } else {
-            // Print filename and size
-            const char* prefix = "";
-            int pref_len = snprintf(progress_text, sizeof(progress_text), "%s", prefix);
-            if(pref_len < 0) pref_len = 0;
-            int avail = (int)sizeof(progress_text) - pref_len - 1;
-            if(avail < 0) avail = 0;
-            snprintf(
-                progress_text + pref_len,
-                (size_t)avail + 1,
-                "%.*s, %lu KB",
-                avail,
-                g.s_file_name,
-                g.s_file_size / 1024);
-
-            // int len = strlen(progress_text);
-            // if(len < (int)sizeof(progress_text) - 1) {
-            //     // int percent = (int)((state->counter * 100) / app->selected_file_size);
-            //     // snprintf(progress_text + len, sizeof(progress_text) - (size_t)len, "");
-            // }
+                progress_text,
+                sizeof(progress_text),
+                "Calc checksum...%lu%%",
+                (unsigned long)(((uint64_t)hash_done * 100u) / hash_total));
+            dialog_ex_set_text(app->dialog_show_file, progress_text, 64, 32, AlignCenter, AlignCenter);
+            return;
         }
-        // Update dialog text
-        dialog_ex_set_text(app->dialog_show_file, progress_text, 64, 32, AlignCenter, AlignCenter);
+
+        // Filename on line 1, size on line 2 (bytes if < 1 KB, else KB).
+        // s_file_name/s_file_size are set once in fs_init and stable, but snapshot
+        // under the lock for consistency; skip this tick on contention.
+        char fname[FS_FILENAME_LENGTH];
+        uint32_t fsize;
+        if(!fs_try_lock_ms(20)) return;
+        memcpy(fname, g.s_file_name, sizeof(fname));
+        fname[sizeof(fname) - 1] = '\0';
+        fsize = g.s_file_size;
+        fs_unlock();
+
+        // fs_init has not published state yet (hashing not started or init
+        // failed) — keep the "Starting..." text from on_enter.
+        if(fsize == 0) return;
+
+        // Rough ETA by the nominal constant only (the sender has no receiver-side
+        // progress). Pure division by a nonzero constant; clamp for a sane display.
+        uint32_t eta_sec = fsize / FS_PAYLOAD_THROUGHPUT_BPS;
+        if(eta_sec > FS_ETA_MAX_SEC) eta_sec = FS_ETA_MAX_SEC;
+        char eta[16];
+        fs_fmt_duration(eta_sec, eta, sizeof(eta));
+
+        if(fsize < 1024) {
+            snprintf(
+                progress_text, sizeof(progress_text), "%s\n%lu B  ~ %s", fname,
+                (unsigned long)fsize, eta);
+        } else {
+            snprintf(
+                progress_text, sizeof(progress_text), "%s\n%lu KB  ~ %s", fname,
+                (unsigned long)(fsize / 1024), eta);
+        }
     }
-    // snprintf(
-    //     progress_text,
-    //     255,
-    //     "%s\n %u bytes",
-    //     app->selected_file_path,
-    //     app->selected_file_size);
 
-    //snprintf(progress_text, sizeof(progress_text), " %lu bytes", state->counter);
-
-    // Update dialog text
     dialog_ex_set_text(app->dialog_show_file, progress_text, 64, 32, AlignCenter, AlignCenter);
 }
 
@@ -162,7 +185,8 @@ bool flipper_share_scene_send_on_event(void* context, SceneManagerEvent event) {
             // Cancel button pressed - stop reading and return to file info
             FileReadingState* state = (FileReadingState*)app->file_reading_state;
             if(state && state->worker_thread) {
-                furi_thread_flags_set(furi_thread_get_id(state->worker_thread), 0x1);
+                furi_thread_flags_set(
+                    furi_thread_get_id(state->worker_thread), FS_WORKER_STOP_FLAG);
                 furi_thread_join(state->worker_thread);
             }
 
@@ -193,7 +217,8 @@ bool flipper_share_scene_send_on_event(void* context, SceneManagerEvent event) {
         // Back button - same as Cancel
         FileReadingState* state = (FileReadingState*)app->file_reading_state;
         if(state && state->worker_thread) {
-            furi_thread_flags_set(furi_thread_get_id(state->worker_thread), 0x1);
+            furi_thread_flags_set(
+                furi_thread_get_id(state->worker_thread), FS_WORKER_STOP_FLAG);
             furi_thread_join(state->worker_thread);
         }
 
@@ -230,4 +255,8 @@ void flipper_share_scene_send_on_exit(void* context) {
         furi_timer_free(app->timer);
         app->timer = NULL;
     }
+
+    // Worker thread is joined in on_event and the SubGhz worker is stopped above,
+    // so free the shared context and the shared-state lock.
+    fs_deinit();
 }
