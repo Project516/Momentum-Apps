@@ -2,6 +2,7 @@
 
 #include "nfc_magic_app.h"
 #include "helpers/nfc_magic_custom_events.h"
+#include "helpers/mfc_key_cache.h"
 
 #include <furi.h>
 #include <gui/gui.h>
@@ -73,7 +74,10 @@ enum NfcMagicAppCustomEvent {
 };
 
 typedef struct {
-    KeysDict* dict;
+    KeysDict* dict; // dictionary phases; NULL while the key cache phase runs
+    MfcKeyCache* key_cache; // key cache phase only; NULL selects the dictionary above. Mirrors the
+        // scene state -- prepare_view is the only place both are set
+    uint8_t cache_key_index; // cache cursor within current_sector: 0 = key A, 1 = key B
     uint8_t sectors_total;
     uint8_t sectors_read;
     uint8_t current_sector;
@@ -92,6 +96,12 @@ typedef struct {
     Gen2PollerWriteProblems problems;
 } NfcMagicAppWriteProblemsContext;
 
+// Reason passed to the WipeFail scene via its scene state so it can explain the failure.
+typedef enum {
+    NfcMagicWipeFailReasonGeneric, // an error occurred mid-wipe
+    NfcMagicWipeFailReasonNoKeys, // no sector keys found, so the wipe never started
+} NfcMagicWipeFailReason;
+
 struct NfcMagicApp {
     ViewDispatcher* view_dispatcher;
     Gui* gui;
@@ -109,14 +119,31 @@ struct NfcMagicApp {
 
     Nfc* nfc;
     NfcMagicProtocol protocol;
+    Gen2Type gen2_type;
+    uint8_t gen1_uid_len; // Gen1 UID length class (4/7) derived from card_uid_len; 0 if not Gen1
+    uint8_t card_uid[ISO14443_3A_MAX_UID_SIZE]; // scanned card's UID; names its key cache entry
+    uint8_t card_uid_len; // 0 when the card never activated (backdoor-only)
+    UscuidUlData uscuid_ul_data;
+    uint16_t write_progress_current; // USCUID-UL: pages written so far (live progress)
+    uint16_t write_progress_total; // USCUID-UL: total pages to write
+    uint16_t write_failed_count; // USCUID-UL: pages that didn't take (partial clone)
+    uint8_t write_failed_bitmap[USCUID_UL_FAILED_BITMAP_SIZE]; // bit N set = page N failed
+    uint8_t uscuid_ul_password[USCUID_UL_PWD_SIZE]; // PWD-AUTH password (direct/ATS tags)
+    bool uscuid_ul_password_set; // auth before writes is armed
+    bool uscuid_ul_is_wipe_mode; // Wipe = write a synthesized factory-default dump
+    bool source_uid_mismatch;
     NfcMagicScanner* scanner;
     NfcPoller* poller;
     Gen1aPoller* gen1a_poller;
 
     Gen2Poller* gen2_poller;
     bool gen2_poller_is_wipe_mode;
+    uint16_t gen2_partial_blocks_total; // Gen2 wipe/clone partial: blocks on the card/dump
+    uint16_t gen2_partial_failed_count; // blocks that couldn't be written (no key / read-only)
+    uint8_t gen2_partial_failed_bitmap[GEN2_POLLER_BLOCK_BITMAP_SIZE]; // bit N = block N not written
 
     Gen4Poller* gen4_poller;
+    UscuidUlPoller* uscuid_ul_poller;
 
     Gen4* gen4_data;
 
@@ -150,6 +177,8 @@ typedef enum {
     NfcMagicAppViewDictAttack,
     NfcMagicAppViewWriteProblems,
 } NfcMagicAppView;
+
+void nfc_magic_app_free_dict_attack_keys(NfcMagicApp* instance);
 
 void nfc_magic_app_blink_start(NfcMagicApp* nfc_magic);
 
