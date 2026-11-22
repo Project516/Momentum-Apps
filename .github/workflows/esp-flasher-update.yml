@@ -1,0 +1,85 @@
+name: "ESP Flasher update"
+
+on:
+  schedule:
+    - cron: "30 15 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: esp-flasher-update
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GITHUB_TOKEN: ${{ github.token }}
+  BRANCH: sync/esp-flasher
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 1
+
+      - name: "Set git identity"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: "Update bundled images"
+        id: update
+        run: |
+          git switch -C "$BRANCH" origin/dev
+          touch "$RUNNER_TEMP/summary.md"
+          python3 .github/scripts/esp_flasher_update.py --summary "$RUNNER_TEMP/summary.md"
+          echo "commits=$(git rev-list --count origin/dev..HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: "Open or update the PR"
+        if: steps.update.outputs.commits != '0'
+        run: |
+          {
+            echo "Bumps the bundled ESP32 firmware images to the latest upstream releases."
+            echo
+            cat "$RUNNER_TEMP/summary.md"
+            echo "Before a file is copied, it is checked. ESP images must start with 0xE9 and carry the chip ID of their target. Partition tables must start with 0xAA 0x50. A source with a failed check or a missing file is skipped."
+          } > "$RUNNER_TEMP/body.md"
+
+          # Push unless the remote branch already has the same tree.
+          if git fetch --no-tags --depth 1 origin "$BRANCH" 2> /dev/null && git diff --quiet FETCH_HEAD HEAD; then
+            pushed=0
+          else
+            git push --force-with-lease origin "$BRANCH"
+            pushed=1
+          fi
+
+          n=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then
+            gh pr edit "$n" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --base dev --head "$BRANCH" \
+              --title "chore: update bundled ESP Flasher firmware images" \
+              --body-file "$RUNNER_TEMP/body.md"
+            pushed=1
+          fi
+
+          # PRs made with GITHUB_TOKEN do not trigger CI.
+          if [ "$pushed" -eq 1 ]; then
+            gh workflow run build.yml --ref "$BRANCH"
+          fi
+
+      - name: "Close the PR when nothing changed"
+        if: steps.update.outputs.commits == '0'
+        run: |
+          for n in $(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number'); do
+            gh pr close "$n" --comment "Closing: the bundled ESP Flasher images are up to date."
+            git push origin --delete "$BRANCH" || true
+          done
