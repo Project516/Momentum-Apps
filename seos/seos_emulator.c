@@ -278,6 +278,7 @@ NfcCommand seos_worker_listener_callback(NfcGenericEvent event, void* context) {
     case Iso14443_4aListenerEventTypeReceivedData:
         seos_emulator->rx_buffer = iso14443_4a_event->data->buffer;
         const uint8_t* rx_data = bit_buffer_get_data(seos_emulator->rx_buffer);
+        UNUSED(rx_data);
         size_t rx_len = bit_buffer_get_size_bytes(seos_emulator->rx_buffer);
 
 #if !__has_include(<lib/nfc/protocols/type_4_tag/type_4_tag.h>)
