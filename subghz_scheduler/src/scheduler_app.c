@@ -137,7 +137,6 @@ SchedulerApp* scheduler_app_alloc(void) {
     scheduler_interval_view_set_app(app->interval_view, app);
 
     app->scheduler = scheduler_alloc();
-    //Scheduler* scheduler = app->scheduler;
 
     // Test for external device
     app->ext_radio_present = scheduler_app_ext_device_init();
