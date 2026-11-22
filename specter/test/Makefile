@@ -1,0 +1,50 @@
+# Host tests for Specter's pure logic. Nothing here touches the Flipper SDK, so
+# the decision layers - what kind of emitter is this, is this room clean - can be
+# pinned down on any machine before they ever reach hardware.
+#
+#   make -C test        build and run everything
+#   make -C test clean
+
+CC      ?= cc
+CFLAGS  ?= -std=c11 -Wall -Wextra -Werror -O1 -g
+
+TESTS   := build/test_classify build/test_survey build/test_scale build/test_present build/test_ema build/test_logfilter build/test_cadence build/test_logwrap
+
+.PHONY: all clean
+all: $(TESTS)
+	@for t in $(TESTS); do ./$$t || exit 1; done
+
+build/test_classify: test_classify.c ../helpers/emitter_classify.c ../helpers/emitter_classify.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -o $@ test_classify.c ../helpers/emitter_classify.c
+
+build/test_survey: test_survey.c ../helpers/survey_verdict.c ../helpers/survey_verdict.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -o $@ test_survey.c ../helpers/survey_verdict.c
+
+build/test_scale: test_scale.c ../helpers/field_scale.c ../helpers/field_scale.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -o $@ test_scale.c ../helpers/field_scale.c
+
+clean:
+	rm -rf build
+
+build/test_present: test_present.c ../helpers/present_hold.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -o $@ test_present.c
+
+build/test_ema: test_ema.c ../helpers/ema.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -o $@ test_ema.c
+
+build/test_logfilter: test_logfilter.c ../helpers/log_filter.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -o $@ test_logfilter.c
+
+build/test_cadence: test_cadence.c ../helpers/cadence.h ../helpers/emitter_classify.c
+	@mkdir -p build
+	$(CC) $(CFLAGS) -o $@ test_cadence.c ../helpers/emitter_classify.c
+
+build/test_logwrap: test_logwrap.c ../helpers/log_wrap.h ../helpers/log_filter.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -o $@ test_logwrap.c
