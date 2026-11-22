@@ -69,7 +69,7 @@ const SubGhzProtocolDecoder subghz_protocol_subaru_decoder = {
     .get_string = subghz_protocol_decoder_subaru_get_string,
 };
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 const SubGhzProtocolEncoder subghz_protocol_subaru_encoder = {
     .alloc = subghz_protocol_encoder_subaru_alloc,
     .free = pp_encoder_free,
@@ -91,10 +91,18 @@ const SubGhzProtocol subaru_protocol = {
     .name = SUBARU_PROTOCOL_NAME,
     .type = SubGhzProtocolTypeDynamic,
     .flag = SubGhzProtocolFlag_315 | SubGhzProtocolFlag_433 | SubGhzProtocolFlag_AM |
-            SubGhzProtocolFlag_Decodable |
-            SubGhzProtocolFlag_Load | SubGhzProtocolFlag_Save | SubGhzProtocolFlag_Send,
+            SubGhzProtocolFlag_Decodable | SubGhzProtocolFlag_Load | SubGhzProtocolFlag_Save |
+            SubGhzProtocolFlag_Send,
+#if PROTOPIRATE_WITH_DECODER
     .decoder = &subghz_protocol_subaru_decoder,
+#else
+    .decoder = NULL,
+#endif
+#if PROTOPIRATE_WITH_ENCODER
     .encoder = &subghz_protocol_subaru_encoder,
+#else
+    .encoder = NULL,
+#endif
 };
 
 // ============================================================================
@@ -191,12 +199,14 @@ static bool subaru_process_data(SubGhzProtocolDecoderSubaru* instance) {
 }
 
 static uint8_t subghz_protocol_decoder_subaru_get_hash_data(void* context) {
-    furi_check(context);
     SubGhzProtocolDecoderSubaru* instance = context;
     const uint8_t* p = (const uint8_t*)&instance->decoder.decode_data;
     uint8_t hash = 0;
-    const uint8_t bytes = (uint8_t)(instance->decoder.decode_count_bit >> 3);
-    for(uint8_t i = 0; i <= bytes; i++) {
+    size_t bytes = (size_t)(instance->decoder.decode_count_bit >> 3) + 1U;
+    if(bytes > sizeof(instance->decoder.decode_data)) {
+        bytes = sizeof(instance->decoder.decode_data);
+    }
+    for(size_t i = 0; i < bytes; i++) {
         hash ^= p[i];
     }
     return hash;
@@ -205,7 +215,7 @@ static uint8_t subghz_protocol_decoder_subaru_get_hash_data(void* context) {
 // ============================================================================
 // ENCODER IMPLEMENTATION
 // ============================================================================
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 
 static void subaru_encode_count(uint8_t* KB, uint16_t count) {
     uint8_t lo = count & 0xFF;
@@ -272,7 +282,10 @@ static void subaru_encode_count(uint8_t* KB, uint16_t count) {
 
 void* subghz_protocol_encoder_subaru_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
-    SubGhzProtocolEncoderSubaru* instance = malloc(sizeof(SubGhzProtocolEncoderSubaru));
+    SubGhzProtocolEncoderSubaru* instance = calloc(1, sizeof(SubGhzProtocolEncoderSubaru));
+    if(!instance) {
+        return NULL;
+    }
 
     instance->base.protocol = &subaru_protocol;
     instance->generic.protocol_name = instance->base.protocol->name;
@@ -291,10 +304,9 @@ void* subghz_protocol_encoder_subaru_alloc(SubGhzEnvironment* environment) {
 }
 
 #endif
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 
 static void subghz_protocol_encoder_subaru_get_upload(SubGhzProtocolEncoderSubaru* instance) {
-    furi_check(instance);
     size_t index = 0;
 
     const uint32_t te_short = subghz_protocol_subaru_const.te_short;
@@ -342,11 +354,10 @@ static void subghz_protocol_encoder_subaru_get_upload(SubGhzProtocolEncoderSubar
 }
 
 #endif
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 
 SubGhzProtocolStatus
     subghz_protocol_encoder_subaru_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
     SubGhzProtocolEncoderSubaru* instance = context;
 
     instance->encoder.is_running = false;
@@ -423,20 +434,21 @@ SubGhzProtocolStatus
 
 void* subghz_protocol_decoder_subaru_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
-    SubGhzProtocolDecoderSubaru* instance = malloc(sizeof(SubGhzProtocolDecoderSubaru));
+    SubGhzProtocolDecoderSubaru* instance = calloc(1, sizeof(SubGhzProtocolDecoderSubaru));
+    if(!instance) {
+        return NULL;
+    }
     instance->base.protocol = &subaru_protocol;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;
 }
 
 void subghz_protocol_decoder_subaru_reset(void* context) {
-    furi_check(context);
     SubGhzProtocolDecoderSubaru* instance = context;
     instance->decoder.parser_step = SubaruDecoderStepReset;
 }
 
 void subghz_protocol_decoder_subaru_feed(void* context, bool level, uint32_t duration) {
-    furi_check(context);
     SubGhzProtocolDecoderSubaru* instance = context;
 
     const uint32_t te_short = subghz_protocol_subaru_const.te_short;
@@ -546,7 +558,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_subaru_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset) {
-    furi_check(context);
     SubGhzProtocolDecoderSubaru* instance = context;
 
     uint8_t b[8];
@@ -573,14 +584,12 @@ SubGhzProtocolStatus subghz_protocol_decoder_subaru_serialize(
 
 SubGhzProtocolStatus
     subghz_protocol_decoder_subaru_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
     SubGhzProtocolDecoderSubaru* instance = context;
     return subghz_block_generic_deserialize_check_count_bit(
         &instance->generic, flipper_format, subghz_protocol_subaru_const.min_count_bit_for_found);
 }
 
 void subghz_protocol_decoder_subaru_get_string(void* context, FuriString* output) {
-    furi_check(context);
     SubGhzProtocolDecoderSubaru* instance = context;
 
     uint8_t b[8];

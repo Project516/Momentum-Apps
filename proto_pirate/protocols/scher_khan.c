@@ -61,13 +61,28 @@ const SubGhzProtocol subghz_protocol_scher_khan = {
     .type = SubGhzProtocolTypeDynamic,
     .flag = SubGhzProtocolFlag_433 | SubGhzProtocolFlag_FM | SubGhzProtocolFlag_Decodable,
 
+#if PROTOPIRATE_WITH_DECODER
+
     .decoder = &subghz_protocol_scher_khan_decoder,
+
+#else
+
+    .decoder = NULL,
+
+#endif
+#if PROTOPIRATE_WITH_ENCODER
     .encoder = &subghz_protocol_scher_khan_encoder,
+#else
+    .encoder = NULL,
+#endif
 };
 
 void* subghz_protocol_decoder_scher_khan_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
-    SubGhzProtocolDecoderScherKhan* instance = malloc(sizeof(SubGhzProtocolDecoderScherKhan));
+    SubGhzProtocolDecoderScherKhan* instance = calloc(1, sizeof(SubGhzProtocolDecoderScherKhan));
+    if(!instance) {
+        return NULL;
+    }
     instance->base.protocol = &subghz_protocol_scher_khan;
     instance->generic.protocol_name = instance->base.protocol->name;
 
@@ -75,13 +90,11 @@ void* subghz_protocol_decoder_scher_khan_alloc(SubGhzEnvironment* environment) {
 }
 
 void subghz_protocol_decoder_scher_khan_reset(void* context) {
-    furi_check(context);
     SubGhzProtocolDecoderScherKhan* instance = context;
     instance->decoder.parser_step = ScherKhanDecoderStepReset;
 }
 
 void subghz_protocol_decoder_scher_khan_feed(void* context, bool level, uint32_t duration) {
-    furi_check(context);
     SubGhzProtocolDecoderScherKhan* instance = context;
 
     switch(instance->decoder.parser_step) {
@@ -254,7 +267,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_scher_khan_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset) {
-    furi_check(context);
     SubGhzProtocolDecoderScherKhan* instance = context;
     SubGhzProtocolStatus ret = SubGhzProtocolStatusError;
 
@@ -312,13 +324,21 @@ SubGhzProtocolStatus subghz_protocol_decoder_scher_khan_serialize(
 
 SubGhzProtocolStatus
     subghz_protocol_decoder_scher_khan_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
     SubGhzProtocolDecoderScherKhan* instance = context;
-    return subghz_block_generic_deserialize(&instance->generic, flipper_format);
+    SubGhzProtocolStatus status =
+        subghz_block_generic_deserialize(&instance->generic, flipper_format);
+    if(status != SubGhzProtocolStatusOk) {
+        return status;
+    }
+    if(instance->generic.data_count_bit <
+           subghz_protocol_scher_khan_const.min_count_bit_for_found ||
+       instance->generic.data_count_bit > 64U) {
+        return SubGhzProtocolStatusErrorValueBitCount;
+    }
+    return status;
 }
 
 void subghz_protocol_decoder_scher_khan_get_string(void* context, FuriString* output) {
-    furi_check(context);
     SubGhzProtocolDecoderScherKhan* instance = context;
 
     subghz_protocol_scher_khan_check_remote_controller(

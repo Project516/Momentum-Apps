@@ -79,7 +79,7 @@ static uint16_t mixer_decode(uint32_t encrypted) {
     return (s0 + (s1 << 8)) & 0xFFFF;
 }
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 static uint32_t mixer_encode(uint32_t serial, uint16_t counter, uint8_t button) {
     build_keystore_from_mfkey(keystore_bytes);
 
@@ -196,7 +196,7 @@ const SubGhzProtocolDecoder kia_protocol_v5_decoder = {
     .get_string = kia_protocol_decoder_v5_get_string,
 };
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 const SubGhzProtocolEncoder kia_protocol_v5_encoder = {
     .alloc = kia_protocol_encoder_v5_alloc,
     .free = pp_encoder_free,
@@ -219,15 +219,23 @@ const SubGhzProtocol kia_protocol_v5 = {
     .type = SubGhzProtocolTypeDynamic,
     .flag = SubGhzProtocolFlag_315 | SubGhzProtocolFlag_433 | SubGhzProtocolFlag_FM |
             SubGhzProtocolFlag_Decodable
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
             | SubGhzProtocolFlag_Save | SubGhzProtocolFlag_Load | SubGhzProtocolFlag_Send
 #endif
     ,
+#if PROTOPIRATE_WITH_DECODER
     .decoder = &kia_protocol_v5_decoder,
+#else
+    .decoder = NULL,
+#endif
+#if PROTOPIRATE_WITH_ENCODER
     .encoder = &kia_protocol_v5_encoder,
+#else
+    .encoder = NULL,
+#endif
 };
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 
 static uint8_t kia_v5_calculate_crc(uint64_t data) {
     uint8_t crc = 0;
@@ -243,12 +251,15 @@ static uint8_t kia_v5_calculate_crc(uint64_t data) {
 }
 
 void* kia_protocol_encoder_v5_alloc(SubGhzEnvironment* environment) {
-    SubGhzProtocolEncoderKiaV5* instance = calloc(1, sizeof(SubGhzProtocolEncoderKiaV5));
-    furi_check(instance);
-
     if(environment) {
         protopirate_keys_load(environment);
     }
+    if(!protopirate_keys_has_kia_v5_key()) {
+        FURI_LOG_E(TAG, "Kia V5 encoder missing KIA_KEY4 keystore entry");
+        return NULL;
+    }
+
+    SubGhzProtocolEncoderKiaV5* instance = calloc(1, sizeof(SubGhzProtocolEncoderKiaV5));
 
     instance->base.protocol = &kia_protocol_v5;
     instance->generic.protocol_name = instance->base.protocol->name;
@@ -306,7 +317,6 @@ static void kia_protocol_encoder_v5_get_upload(SubGhzProtocolEncoderKiaV5* insta
 
 SubGhzProtocolStatus
     kia_protocol_encoder_v5_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
     SubGhzProtocolEncoderKiaV5* instance = context;
 
     instance->encoder.is_running = false;
@@ -355,8 +365,8 @@ SubGhzProtocolStatus
     cnt_v &= 0xFFFFU;
 
     const uint32_t mixer = mixer_encode(serial_v, (uint16_t)cnt_v, (uint8_t)btn_v);
-    const uint64_t yek_new =
-        ((uint64_t)btn_v << 60) | ((uint64_t)serial_v << 32) | (uint64_t)mixer;
+    const uint64_t yek_new = ((uint64_t)btn_v << 60) | ((uint64_t)serial_v << 32) |
+                             (uint64_t)mixer;
 
     uint64_t data_new = 0;
     for(int i = 0; i < 8; i++) {
@@ -429,8 +439,7 @@ static void kia_v5_add_bit(SubGhzProtocolDecoderKiaV5* instance, bool bit) {
 
 void* kia_protocol_decoder_v5_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolDecoderKiaV5* instance = malloc(sizeof(SubGhzProtocolDecoderKiaV5));
-    furi_check(instance);
-    
+
     if(environment) {
         protopirate_keys_load(environment);
     }
@@ -441,7 +450,6 @@ void* kia_protocol_decoder_v5_alloc(SubGhzEnvironment* environment) {
 }
 
 void kia_protocol_decoder_v5_reset(void* context) {
-    furi_check(context);
     SubGhzProtocolDecoderKiaV5* instance = context;
     instance->decoder.parser_step = KiaV5DecoderStepReset;
     instance->header_count = 0;
@@ -454,7 +462,6 @@ void kia_protocol_decoder_v5_reset(void* context) {
 }
 
 void kia_protocol_decoder_v5_feed(void* context, bool level, uint32_t duration) {
-    furi_check(context);
     SubGhzProtocolDecoderKiaV5* instance = context;
 
     switch(instance->decoder.parser_step) {
@@ -591,7 +598,6 @@ SubGhzProtocolStatus kia_protocol_decoder_v5_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset) {
-    furi_check(context);
     SubGhzProtocolDecoderKiaV5* instance = context;
 
     SubGhzProtocolStatus ret = SubGhzProtocolStatusError;
@@ -627,14 +633,12 @@ SubGhzProtocolStatus kia_protocol_decoder_v5_serialize(
 
 SubGhzProtocolStatus
     kia_protocol_decoder_v5_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
     SubGhzProtocolDecoderKiaV5* instance = context;
     return subghz_block_generic_deserialize_check_count_bit(
         &instance->generic, flipper_format, kia_protocol_v5_const.min_count_bit_for_found);
 }
 
 void kia_protocol_decoder_v5_get_string(void* context, FuriString* output) {
-    furi_check(context);
     SubGhzProtocolDecoderKiaV5* instance = context;
 
     uint32_t code_found_hi = instance->generic.data >> 32;

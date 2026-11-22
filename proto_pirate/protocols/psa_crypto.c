@@ -19,7 +19,7 @@ const uint32_t psa_crypto_bf2_key_schedule[4] = {
     0x02192A04U,
 };
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 void psa_crypto_tea_encrypt(uint32_t* v0, uint32_t* v1, const uint32_t* key) {
     uint32_t sum = 0;
     for(int i = 0; i < TEA_ROUNDS; i++) {
@@ -92,4 +92,3 @@ void psa_crypto_unpack_tea_result_to_buffer(uint8_t* buffer, uint32_t v0, uint32
     buffer[8] = (uint8_t)((v1 >> 8) & 0xFF);
     buffer[9] = (uint8_t)(v1 & 0xFF);
 }
-

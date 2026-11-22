@@ -4,23 +4,26 @@
 #include <lib/subghz/types.h>
 #include <lib/subghz/blocks/const.h>
 #include <lib/subghz/blocks/decoder.h>
-#include <lib/subghz/blocks/encoder.h>
 #include <lib/subghz/blocks/generic.h>
 #include <lib/subghz/blocks/math.h>
 #include <lib/subghz/protocols/base.h>
 #include <lib/toolbox/manchester_decoder.h>
 
-extern const char FF_BIT[];
-extern const char FF_KEY[];
-extern const char FF_SERIAL[];
-extern const char FF_BTN[];
-extern const char FF_CNT[];
-extern const char FF_REPEAT[];
-extern const char FF_PROTOCOL[];
-extern const char FF_PRESET[];
-extern const char FF_FREQUENCY[];
-extern const char FF_MANUFACTURE[];
-extern const char FF_TYPE[];
+#include "../defines.h"
+
+// Macros, not extern arrays: a plugin that does not link protocols_common.c
+// still needs these field names.
+#define FF_BIT         "Bit"
+#define FF_KEY         "Key"
+#define FF_SERIAL      "Serial"
+#define FF_BTN         "Btn"
+#define FF_CNT         "Cnt"
+#define FF_REPEAT      "Repeat"
+#define FF_PROTOCOL    "Protocol"
+#define FF_PRESET      "Preset"
+#define FF_FREQUENCY   "Frequency"
+#define FF_MANUFACTURE "Manufacture"
+#define FF_TYPE        "Type"
 
 bool pp_preset_name_is_custom_marker(const char* preset_name);
 
@@ -51,6 +54,8 @@ void pp_encoder_read_fields(
     uint32_t* btn_out,
     uint32_t* cnt_out,
     uint32_t* type_out);
+
+#define PP_ENCODER_REPEAT_MAX 50U
 
 uint32_t pp_encoder_read_repeat(FlipperFormat* ff, uint32_t default_repeat);
 
@@ -118,6 +123,12 @@ uint8_t pp_decoder_hash_blocks(void* context);
 
 void pp_decoder_free_default(void* context);
 
+#define PP_SHARED_UPLOAD_CAPACITY 2048U
+
+#if PROTOPIRATE_WITH_ENCODER
+
+#include <lib/subghz/blocks/encoder.h>
+
 typedef struct {
     SubGhzProtocolEncoderBase base;
     SubGhzProtocolBlockEncoder encoder;
@@ -127,10 +138,10 @@ void pp_encoder_free(void* context);
 void pp_encoder_stop(void* context);
 LevelDuration pp_encoder_yield(void* context);
 
-#define PP_SHARED_UPLOAD_CAPACITY 2048U
-
 void pp_encoder_buffer_ensure(void* context, size_t capacity);
 
 LevelDuration* pp_shared_upload_buffer(void);
 size_t pp_shared_upload_capacity(void);
 void pp_shared_upload_release(void);
+
+#endif

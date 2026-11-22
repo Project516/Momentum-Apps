@@ -12,40 +12,36 @@
 #define PROTOPIRATE_CACHE_FOLDER     APP_DATA_PATH("cache")
 #define PROTOPIRATE_HISTORY_FOLDER   APP_DATA_PATH("cache/history")
 
-// Initialize storage (create folder if needed)
-bool protopirate_storage_init(void);
+bool protopirate_storage_commit_temp_file(
+    Storage* storage,
+    const char* tmp_path,
+    const char* final_path);
 
 // Save a capture to a new file (auto-generated name)
 bool protopirate_storage_save_capture(
     FlipperFormat* flipper_format,
     const char* protocol_name,
-    FuriString* out_path);
+    FuriString* out_path,
+    bool datetime_filenames);
 
 // Save a capture to a specific file path (user-chosen name)
 bool protopirate_storage_save_capture_to_path(FlipperFormat* flipper_format, const char* full_path);
-
-// Save to temp file for emulation
-bool protopirate_storage_save_temp(FlipperFormat* flipper_format);
 
 // Delete temp file
 void protopirate_storage_delete_temp(void);
 
 // Get next available filename for a protocol
-bool protopirate_storage_get_next_filename(const char* protocol_name, FuriString* out_filename);
+bool protopirate_storage_get_next_filename(
+    const char* protocol_name,
+    FuriString* out_filename,
+    bool dont_add_zero);
+
+bool protopirate_storage_get_capture_display_protocol(
+    FlipperFormat* flipper_format,
+    FuriString* protocol_name);
 
 // Delete a file
 bool protopirate_storage_delete_file(const char* file_path);
-
-// Load a file (caller must close with protopirate_storage_close_file)
-FlipperFormat* protopirate_storage_load_file(const char* file_path);
-
-// Close a loaded file (by protopirate_storage_load_file only)
-void protopirate_storage_close_file(FlipperFormat* flipper_format);
-
-// Check if file exists
-bool protopirate_storage_file_exists(const char* file_path);
-
-bool protopirate_storage_ensure_history_folder(void);
 
 void protopirate_storage_purge_temp_history_at_startup(void);
 
