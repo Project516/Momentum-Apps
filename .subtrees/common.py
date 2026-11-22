@@ -1,5 +1,6 @@
 import subprocess
 import pathlib
+import os
 import time
 import sys
 
@@ -69,6 +70,10 @@ def send_alert(title, message):
 
 def check_merge_result(path, repo, result, status):
     if "Automatic merge failed; fix conflicts and then commit the result." in result:
+        if os.environ.get("SUBTREE_SKIP_CONFLICTS"):
+            git("merge", "--abort")
+            print(f"CONFLICT_SKIPPED: {path}")
+            return
         print(f"MERGE_MSG: Merge {path} from {repo}")
         send_alert("Subtree merge failed", "Resolve current index to continue")
         while True:

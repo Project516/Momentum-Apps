@@ -1,0 +1,190 @@
+name: "Upstream sync"
+
+on:
+  schedule:
+    - cron: "0 15 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  PINNED_APPS: "metroflip xremote"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Set git identity"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: "Ensure git subtree is available"
+        run: |
+          if ! git subtree 2>&1 | grep -q '^usage: git subtree'; then
+            mkdir -p "$RUNNER_TEMP/bin"
+            version=$(git --version | awk '{print $3}')
+            curl -fsSL -o "$RUNNER_TEMP/bin/git-subtree" "https://raw.githubusercontent.com/git/git/v$version/contrib/subtree/git-subtree.sh"
+            chmod +x "$RUNNER_TEMP/bin/git-subtree"
+            echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          fi
+
+      - name: "Sync upstream and apps"
+        env:
+          SUBTREE_SKIP_CONFLICTS: "1"
+        run: |
+          set -uo pipefail
+          git fetch --no-tags origin dev
+
+          open_prs() { gh pr list --head "$1" --state open --json number --jq '.[].number'; }
+
+          open_issues() {
+            gh issue list --state open --search "\"$1\" in:title" --json number,title \
+              --jq ".[] | select(.title == \"$1\") | .number"
+          }
+
+          # Push the branch unless the remote copy already has the same tree on the current base.
+          # Then open or update the PR and start the checks that GITHUB_TOKEN pushes do not trigger.
+          publish() {
+            branch=$1 title=$2 body=$3
+            shift 3
+            if git fetch --no-tags origin "$branch" 2> /dev/null \
+              && git diff --quiet FETCH_HEAD HEAD \
+              && git merge-base --is-ancestor origin/dev FETCH_HEAD \
+              && git merge-base --is-ancestor "$@" FETCH_HEAD; then
+              pushed=0
+            else
+              git push --force-with-lease origin "$branch" || return 1
+              pushed=1
+            fi
+            prs=$(open_prs "$branch")
+            if [ -n "$prs" ]; then
+              for n in $prs; do gh pr edit "$n" --body "$body"; done
+            else
+              gh pr create --base dev --head "$branch" --title "$title" --body "$body" || return 1
+              pushed=1
+            fi
+            if [ "$pushed" -eq 1 ]; then
+              gh workflow run build.yml --ref "$branch"
+            fi
+          }
+
+          sync_upstream() {
+            repo=Next-Flip/Momentum-Apps
+            branch=sync/upstream
+            msg="chore: merge Momentum-Apps dev into dev"
+            title="Upstream sync: Momentum-Apps has conflicts"
+            git fetch --no-tags "https://github.com/$repo.git" "dev:refs/remotes/upstream/dev" || return 1
+            count=$(git rev-list --count origin/dev..upstream/dev)
+            prs=$(open_prs "$branch")
+            issues=$(open_issues "$title")
+
+            if [ "$count" -eq 0 ]; then
+              for n in $prs; do gh pr close "$n" --comment "Closing: Momentum-Apps dev has no commits missing from dev."; done
+              for n in $issues; do gh issue close "$n" --comment "Closing: Momentum-Apps dev has no commits missing from dev."; done
+              return 0
+            fi
+
+            base=$(git merge-base origin/dev upstream/dev)
+            compare="https://github.com/$repo/compare/$base...$(git rev-parse upstream/dev)"
+            git switch -C "$branch" origin/dev
+
+            if ! git merge --no-ff -m "$msg" upstream/dev; then
+              files=$(git diff --name-only --diff-filter=U)
+              git merge --abort
+              git switch --detach origin/dev
+              body=$(printf 'Merging `Next-Flip/Momentum-Apps` dev into `dev` conflicts in:\n\n%s\n\nUpstream commits (%s): %s\n\nMerge it by hand.\n' \
+                "$(sed 's/^/- `/; s/$/`/' <<< "${files:-(none listed, the merge failed)}")" "$count" "$compare")
+              if [ -n "$issues" ]; then
+                for n in $issues; do gh issue edit "$n" --body "$body"; done
+              else
+                gh issue create --title "$title" --body "$body" || return 1
+              fi
+              for n in $prs; do gh pr close "$n" --comment "Closing: Momentum-Apps dev now conflicts with dev."; done
+              return 0
+            fi
+
+            for n in $issues; do gh issue close "$n" --comment "Closing: Momentum-Apps dev now merges cleanly."; done
+            publish "$branch" "$msg" \
+              "Merges \`Next-Flip/Momentum-Apps\` dev into \`dev\` ($count new commits): $compare" \
+              upstream/dev
+          }
+
+          sync_apps() {
+            branch=sync/apps
+            msg="chore: update bundled apps from their upstreams"
+            git switch -C "$branch" origin/dev
+            updated=() skipped=() errored=() pinned=()
+
+            while read -r app; do
+              case " $PINNED_APPS " in *" $app "*) pinned+=("$app"); continue ;; esac
+              before=$(git rev-parse HEAD)
+              if python3 .subtrees/update.py "$app" > "$RUNNER_TEMP/app.log" 2>&1; then
+                if grep -q '^CONFLICT_SKIPPED:' "$RUNNER_TEMP/app.log"; then
+                  skipped+=("$app")
+                  echo "skipped (conflict): $app"
+                elif [ "$(git rev-parse HEAD)" != "$before" ]; then
+                  updated+=("$app")
+                  echo "updated: $app"
+                fi
+              else
+                git merge --abort 2> /dev/null
+                git switch -q -f "$branch"
+                git reset -q --hard "$before"
+                git clean -fdq
+                errored+=("$app")
+                echo "skipped (error): $app"
+                tail -n 5 "$RUNNER_TEMP/app.log"
+              fi
+            done < <(find . -name .gitsubtree -not -path './.git/*' | sed 's|^\./||; s|/\.gitsubtree$||' | sort)
+
+            prs=$(open_prs "$branch")
+            if [ "${#updated[@]}" -eq 0 ]; then
+              for n in $prs; do gh pr close "$n" --comment "Closing: no app updates apply cleanly."; done
+              return 0
+            fi
+
+            list() {
+              [ "$#" -eq 0 ] && { echo "- none"; return; }
+              printf -- '- `%s`\n' "$@"
+            }
+            body="Bundled apps updated from their upstreams: ${#updated[@]}.
+
+          Updated:
+
+          $(list "${updated[@]}")
+
+          Skipped because the merge conflicts (merge by hand):
+
+          $(list "${skipped[@]}")
+
+          Skipped because of an error (see the workflow log):
+
+          $(list "${errored[@]}")
+
+          Pinned, never updated:
+
+          $(list "${pinned[@]}")"
+            publish "$branch" "$msg" "$body" origin/dev
+          }
+
+          failed=0
+          sync_upstream || failed=1
+          git switch --detach origin/dev
+          sync_apps || failed=1
+          exit $failed
