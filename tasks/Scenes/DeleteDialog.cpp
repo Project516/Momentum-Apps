@@ -3,12 +3,16 @@
 void FTasks::DeleteDialog::callback(const DialogExResult result, void* context) noexcept
 {
     const auto* app = static_cast<UFZ::Application*>(context);
+    auto* ctx = CTX(app->getUserPointer());
     if (result == DialogExResultRight)
     {
-        const auto* ctx = CTX(app->getUserPointer());
         ctx->currentContainer->erase(ctx->currentContainer->begin() + static_cast<NoteContainer::difference_type>(ctx->currentNoteIndex));
+        ctx->bPreserveSelection = false; // The task is gone, so the index no longer refers to it
+        Data::save(*app); // Persist the deletion right away so a crash or battery pull can't lose it
+        SEND_CUSTOM_EVENT(app, Scenes::MAIN_MENU);
     }
-    SEND_CUSTOM_EVENT(app, Scenes::MAIN_MENU);
+    else // Declining the deletion returns to the menu the dialog was opened from
+        SEND_CUSTOM_EVENT(app, Scenes::EDIT_MENU);
 }
 
 void FTasks::DeleteDialog::enter(void* context) noexcept
@@ -17,7 +21,7 @@ void FTasks::DeleteDialog::enter(void* context) noexcept
     auto* ctx = CTX(popup->application->getUserPointer());
 
     ctx->tmpBuffer = R"(Do you want to delete the following note: ")";
-    ctx->tmpBuffer += (*ctx->currentContainer)[ctx->currentNoteIndex].first.c_str(); // Call c_str() because appending doesn't work I guess??
+    ctx->tmpBuffer += CURRENT_NOTE(ctx).first;
     ctx->tmpBuffer += R"("?)";
 
     popup->reset();
@@ -42,7 +46,7 @@ bool FTasks::DeleteDialog::event(void* context, const SceneManagerEvent event) n
     return false;
 }
 
-void FTasks::DeleteDialog::exit(void* context)
+void FTasks::DeleteDialog::exit(void* context) noexcept
 {
     GET_WIDGET_P(context, UFZ::DialogEx, Scenes::DELETE)->reset();
 }

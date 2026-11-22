@@ -66,7 +66,7 @@ static bool ford_v1_extract_plain_from_raw(
     const uint8_t* raw17_in,
     uint8_t* plain9_out,
     uint8_t* raw17_canonical_out_opt);
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 static void
     ford_v1_plain_apply_fields(uint8_t* plain9, uint32_t serial, uint8_t btn, uint32_t cnt);
 static void ford_v1_encoder_rebuild_raw_from_plain(uint8_t* raw17, const uint8_t* plain9);
@@ -83,7 +83,7 @@ const SubGhzProtocolDecoder subghz_protocol_ford_v1_decoder = {
     .get_string = subghz_protocol_decoder_ford_v1_get_string,
 };
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 const SubGhzProtocolEncoder subghz_protocol_ford_v1_encoder = {
     .alloc = subghz_protocol_encoder_ford_v1_alloc,
     .free = pp_encoder_free,
@@ -105,14 +105,21 @@ const SubGhzProtocol ford_protocol_v1 = {
     .name = FORD_PROTOCOL_V1_NAME,
     .type = SubGhzProtocolTypeDynamic,
     .flag = SubGhzProtocolFlag_315 | SubGhzProtocolFlag_433 | SubGhzProtocolFlag_FM |
-            SubGhzProtocolFlag_Decodable |
-            SubGhzProtocolFlag_Load | SubGhzProtocolFlag_Save
-#ifdef ENABLE_EMULATE_FEATURE
+            SubGhzProtocolFlag_Decodable | SubGhzProtocolFlag_Load | SubGhzProtocolFlag_Save
+#if PROTOPIRATE_WITH_ENCODER
             | SubGhzProtocolFlag_Send
 #endif
     ,
+#if PROTOPIRATE_WITH_DECODER
     .decoder = &subghz_protocol_ford_v1_decoder,
+#else
+    .decoder = NULL,
+#endif
+#if PROTOPIRATE_WITH_ENCODER
     .encoder = &subghz_protocol_ford_v1_encoder,
+#else
+    .encoder = NULL,
+#endif
 };
 
 #define ford_v1_crc16(data, len) subghz_protocol_blocks_crc16((data), (len), 0x1021, 0x0000)
@@ -351,10 +358,7 @@ static bool ford_v1_process_data(SubGhzProtocolDecoderFordV1* instance) {
 
     if(strict_ok) {
         ford_v1_fields_from_plain(
-            decoded,
-            &instance->generic.serial,
-            &instance->generic.btn,
-            &instance->generic.cnt);
+            decoded, &instance->generic.serial, &instance->generic.btn, &instance->generic.cnt);
         instance->encryption_supported = 1;
     } else {
         instance->generic.serial = ((uint32_t)raw[3] << 24) | ((uint32_t)raw[4] << 16) |
@@ -460,14 +464,12 @@ static bool ford_v1_extract_plain_from_raw(
 void* subghz_protocol_decoder_ford_v1_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderFordV1* instance = calloc(1, sizeof(SubGhzProtocolDecoderFordV1));
-    furi_check(instance);
     instance->base.protocol = &ford_protocol_v1;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;
 }
 
 void subghz_protocol_decoder_ford_v1_reset(void* context) {
-    furi_check(context);
     SubGhzProtocolDecoderFordV1* instance = context;
 
     instance->decoder.parser_step = FordV1DecoderStepReset;
@@ -485,7 +487,6 @@ void subghz_protocol_decoder_ford_v1_reset(void* context) {
 }
 
 void subghz_protocol_decoder_ford_v1_feed(void* context, bool level, uint32_t duration) {
-    furi_check(context);
     SubGhzProtocolDecoderFordV1* instance = context;
 
     uint32_t te_short = subghz_protocol_ford_v1_const.te_short;
@@ -662,7 +663,6 @@ void subghz_protocol_decoder_ford_v1_feed(void* context, bool level, uint32_t du
 }
 
 uint8_t subghz_protocol_decoder_ford_v1_get_hash_data(void* context) {
-    furi_check(context);
     SubGhzProtocolDecoderFordV1* instance = context;
 
     uint32_t crc = instance->crc_calc;
@@ -749,7 +749,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_ford_v1_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset) {
-    furi_check(context);
     SubGhzProtocolDecoderFordV1* instance = context;
 
     SubGhzProtocolStatus ret =
@@ -791,7 +790,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_ford_v1_serialize(
 
 SubGhzProtocolStatus
     subghz_protocol_decoder_ford_v1_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
     SubGhzProtocolDecoderFordV1* instance = context;
 
     SubGhzProtocolStatus ret = subghz_block_generic_deserialize_check_count_bit(
@@ -800,11 +798,15 @@ SubGhzProtocolStatus
     if(ret == SubGhzProtocolStatusOk) {
         flipper_format_rewind(flipper_format);
         uint8_t key1_bytes[8] = {0};
-        flipper_format_read_hex(flipper_format, FF_KEY, key1_bytes, 8);
+        if(!flipper_format_read_hex(flipper_format, FF_KEY, key1_bytes, 8)) {
+            return SubGhzProtocolStatusErrorParserKey;
+        }
 
         flipper_format_rewind(flipper_format);
         uint8_t key2_bytes[8] = {0};
-        flipper_format_read_hex(flipper_format, "Key_2", key2_bytes, 8);
+        if(!flipper_format_read_hex(flipper_format, "Key_2", key2_bytes, 8)) {
+            return SubGhzProtocolStatusErrorParserOthers;
+        }
 
         flipper_format_rewind(flipper_format);
         uint8_t key3_bytes[4] = {0};
@@ -843,7 +845,6 @@ SubGhzProtocolStatus
 }
 
 void subghz_protocol_decoder_ford_v1_get_string(void* context, FuriString* output) {
-    furi_check(context);
     SubGhzProtocolDecoderFordV1* instance = context;
 
     uint64_t key1 = instance->generic.data;
@@ -916,7 +917,7 @@ void subghz_protocol_decoder_ford_v1_get_string(void* context, FuriString* outpu
     }
 }
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 
 #define FORD_V1_ENC_BURST_COUNT    6U
 #define FORD_V1_ENC_PREAMBLE_PAIRS 400U
@@ -1072,7 +1073,6 @@ static void ford_v1_encoder_build_burst(SubGhzProtocolEncoderFordV1* instance, u
 void* subghz_protocol_encoder_ford_v1_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderFordV1* instance = calloc(1, sizeof(SubGhzProtocolEncoderFordV1));
-    furi_check(instance);
     instance->base.protocol = &ford_protocol_v1;
     instance->generic.protocol_name = instance->base.protocol->name;
     instance->encoder.repeat = 10;
@@ -1085,7 +1085,6 @@ void* subghz_protocol_encoder_ford_v1_alloc(SubGhzEnvironment* environment) {
 
 SubGhzProtocolStatus
     subghz_protocol_encoder_ford_v1_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
     SubGhzProtocolEncoderFordV1* instance = context;
     SubGhzProtocolStatus ret = SubGhzProtocolStatusError;
 
@@ -1204,4 +1203,4 @@ SubGhzProtocolStatus
     return ret;
 }
 
-#endif // ENABLE_EMULATE_FEATURE
+#endif // PROTOPIRATE_WITH_ENCODER

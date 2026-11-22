@@ -20,7 +20,7 @@ _Static_assert(
     HONDA_STATIC_UPLOAD_CAPACITY <= PP_SHARED_UPLOAD_CAPACITY,
     "HONDA_STATIC_UPLOAD_CAPACITY exceeds shared upload slab");
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 static const uint8_t honda_static_encoder_button_map[4] = {0x02, 0x04, 0x08, 0x05};
 #endif
 static const char* const honda_static_button_names[9] = {
@@ -36,9 +36,9 @@ static const char* const honda_static_button_names[9] = {
 };
 
 typedef struct {
-    uint8_t button;
     uint32_t serial;
     uint32_t counter;
+    uint8_t button;
     uint8_t checksum;
 } HondaStaticFields;
 
@@ -46,11 +46,11 @@ struct SubGhzProtocolDecoderHondaStatic {
     SubGhzProtocolDecoderBase base;
     SubGhzBlockGeneric generic;
 
-    uint8_t symbols[HONDA_STATIC_SYMBOL_BYTE_COUNT];
     uint16_t symbols_count;
+    uint8_t symbols[HONDA_STATIC_SYMBOL_BYTE_COUNT];
 };
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 struct SubGhzProtocolEncoderHondaStatic {
     SubGhzProtocolEncoderBase base;
 
@@ -92,7 +92,7 @@ static uint32_t honda_static_get_bits_u32(const uint8_t* data, uint8_t start, ui
     return value;
 }
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 static void honda_static_set_bits(uint8_t* data, uint8_t start, uint8_t count, uint32_t value) {
     for(uint8_t i = 0; i < count; i++) {
         const uint8_t bit_index = start + i;
@@ -143,7 +143,7 @@ static bool honda_static_is_valid_serial(uint32_t serial) {
     return (serial != 0U) && (serial != 0x0FFFFFFFU);
 }
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 static uint8_t honda_static_encoder_remap_button(uint8_t button) {
     if(button < 2U) {
         return 1U;
@@ -212,7 +212,7 @@ static uint64_t honda_static_pack_compact(const HondaStaticFields* fields) {
     return pp_bytes_to_u64_be(compact);
 }
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 static void honda_static_build_packet_bytes(const HondaStaticFields* fields, uint8_t packet[8]) {
     memset(packet, 0, 8);
 
@@ -408,7 +408,7 @@ static void honda_static_decoder_commit(
     }
 }
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 static void honda_static_build_upload(SubGhzProtocolEncoderHondaStatic* instance) {
     uint8_t packet[8];
     honda_static_build_packet_bytes(&instance->decoded, packet);
@@ -449,7 +449,7 @@ const SubGhzProtocolDecoder subghz_protocol_honda_static_decoder = {
     .get_string = subghz_protocol_decoder_honda_static_get_string,
 };
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 const SubGhzProtocolEncoder subghz_protocol_honda_static_encoder = {
     .alloc = subghz_protocol_encoder_honda_static_alloc,
     .free = pp_encoder_free,
@@ -473,16 +473,23 @@ const SubGhzProtocol honda_static_protocol = {
     .flag = SubGhzProtocolFlag_Decodable | SubGhzProtocolFlag_315 | SubGhzProtocolFlag_433 |
             SubGhzProtocolFlag_FM | SubGhzProtocolFlag_Save | SubGhzProtocolFlag_Load |
             SubGhzProtocolFlag_Send,
+#if PROTOPIRATE_WITH_DECODER
     .decoder = &subghz_protocol_honda_static_decoder,
+#else
+    .decoder = NULL,
+#endif
+#if PROTOPIRATE_WITH_ENCODER
     .encoder = &subghz_protocol_honda_static_encoder,
+#else
+    .encoder = NULL,
+#endif
 };
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 void* subghz_protocol_encoder_honda_static_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
 
     SubGhzProtocolEncoderHondaStatic* instance = malloc(sizeof(SubGhzProtocolEncoderHondaStatic));
-    furi_check(instance);
     memset(instance, 0, sizeof(*instance));
 
     instance->base.protocol = &honda_static_protocol;
@@ -495,8 +502,6 @@ void* subghz_protocol_encoder_honda_static_alloc(SubGhzEnvironment* environment)
 
 SubGhzProtocolStatus
     subghz_protocol_encoder_honda_static_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
-
     SubGhzProtocolEncoderHondaStatic* instance = context;
 
     instance->encoder.is_running = false;
@@ -553,7 +558,6 @@ void* subghz_protocol_decoder_honda_static_alloc(SubGhzEnvironment* environment)
     UNUSED(environment);
 
     SubGhzProtocolDecoderHondaStatic* instance = malloc(sizeof(SubGhzProtocolDecoderHondaStatic));
-    furi_check(instance);
     memset(instance, 0, sizeof(*instance));
 
     instance->base.protocol = &honda_static_protocol;
@@ -563,15 +567,11 @@ void* subghz_protocol_decoder_honda_static_alloc(SubGhzEnvironment* environment)
 }
 
 void subghz_protocol_decoder_honda_static_reset(void* context) {
-    furi_check(context);
-
     SubGhzProtocolDecoderHondaStatic* instance = context;
     instance->symbols_count = 0U;
 }
 
 void subghz_protocol_decoder_honda_static_feed(void* context, bool level, uint32_t duration) {
-    furi_check(context);
-
     SubGhzProtocolDecoderHondaStatic* instance = context;
 
     const uint8_t sym = honda_static_level_u8(level);
@@ -608,8 +608,6 @@ void subghz_protocol_decoder_honda_static_feed(void* context, bool level, uint32
 }
 
 uint8_t subghz_protocol_decoder_honda_static_get_hash_data(void* context) {
-    furi_check(context);
-
     SubGhzProtocolDecoderHondaStatic* instance = context;
     const uint64_t data = instance->generic.data;
 
@@ -618,8 +616,6 @@ uint8_t subghz_protocol_decoder_honda_static_get_hash_data(void* context) {
 }
 
 void subghz_protocol_decoder_honda_static_get_string(void* context, FuriString* output) {
-    furi_check(context);
-
     SubGhzProtocolDecoderHondaStatic* instance = context;
     HondaStaticFields decoded;
     honda_static_unpack_compact(instance->generic.data, &decoded);
@@ -641,8 +637,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_honda_static_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset) {
-    furi_check(context);
-
     SubGhzProtocolDecoderHondaStatic* instance = context;
     instance->generic.data_count_bit = HONDA_STATIC_BIT_COUNT;
     HondaStaticFields decoded;
@@ -673,8 +667,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_honda_static_serialize(
 
 SubGhzProtocolStatus
     subghz_protocol_decoder_honda_static_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
-
     SubGhzProtocolDecoderHondaStatic* instance = context;
     SubGhzProtocolStatus status = subghz_block_generic_deserialize_check_count_bit(
         &instance->generic, flipper_format, HONDA_STATIC_BIT_COUNT);

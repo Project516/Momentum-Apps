@@ -197,8 +197,7 @@ static void chrysler_v0_decode_packet(SubGhzProtocolDecoderChrysler_V0* instance
         memcpy(instance->plain_a, decoded, sizeof(instance->plain_a));
         instance->plain_a_present = 1U;
 
-        instance->generic.cnt = ((uint32_t)decoded[0] << 24U) |
-                                ((uint32_t)decoded[1] << 16U) |
+        instance->generic.cnt = ((uint32_t)decoded[0] << 24U) | ((uint32_t)decoded[1] << 16U) |
                                 ((uint32_t)decoded[2] << 8U) | (uint32_t)decoded[3];
     }
 
@@ -216,7 +215,7 @@ static void chrysler_v0_decoder_commit(SubGhzProtocolDecoderChrysler_V0* instanc
     }
 }
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 
 static uint8_t chrysler_v0_payload_get_bit(const uint8_t payload[10], uint8_t index) {
     const uint8_t byte = payload[index >> 3U];
@@ -296,7 +295,7 @@ const SubGhzProtocolDecoder subghz_protocol_chrysler_v0_decoder = {
     .get_string = subghz_protocol_decoder_chrysler_v0_get_string,
 };
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 const SubGhzProtocolEncoder subghz_protocol_chrysler_v0_encoder = {
     .alloc = subghz_protocol_encoder_chrysler_v0_alloc,
     .free = pp_encoder_free,
@@ -317,25 +316,31 @@ const SubGhzProtocolEncoder subghz_protocol_chrysler_v0_encoder = {
 const SubGhzProtocol chrysler_protocol_v0 = {
     .name = CHRYSLER_PROTOCOL_V0_NAME,
     .type = SubGhzProtocolTypeDynamic,
-    .flag = SubGhzProtocolFlag_315 | SubGhzProtocolFlag_433 |
-            SubGhzProtocolFlag_AM | SubGhzProtocolFlag_Decodable | SubGhzProtocolFlag_Save |
-            SubGhzProtocolFlag_Load
-#ifdef ENABLE_EMULATE_FEATURE
+    .flag = SubGhzProtocolFlag_315 | SubGhzProtocolFlag_433 | SubGhzProtocolFlag_AM |
+            SubGhzProtocolFlag_Decodable | SubGhzProtocolFlag_Save | SubGhzProtocolFlag_Load
+#if PROTOPIRATE_WITH_ENCODER
             | SubGhzProtocolFlag_Send
 #endif
     ,
+#if PROTOPIRATE_WITH_DECODER
     .decoder = &subghz_protocol_chrysler_v0_decoder,
+#else
+    .decoder = NULL,
+#endif
+#if PROTOPIRATE_WITH_ENCODER
     .encoder = &subghz_protocol_chrysler_v0_encoder,
+#else
+    .encoder = NULL,
+#endif
 };
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 
 void* subghz_protocol_encoder_chrysler_v0_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
 
     SubGhzProtocolEncoderChrysler_V0* instance =
         calloc(1, sizeof(SubGhzProtocolEncoderChrysler_V0));
-    furi_check(instance);
 
     instance->base.protocol = &chrysler_protocol_v0;
     instance->generic.protocol_name = instance->base.protocol->name;
@@ -349,8 +354,6 @@ void* subghz_protocol_encoder_chrysler_v0_alloc(SubGhzEnvironment* environment) 
 
 SubGhzProtocolStatus
     subghz_protocol_encoder_chrysler_v0_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
-
     SubGhzProtocolEncoderChrysler_V0* instance = context;
     if(pp_verify_protocol_name(flipper_format, instance->base.protocol->name) !=
        SubGhzProtocolStatusOk) {
@@ -485,7 +488,6 @@ void* subghz_protocol_decoder_chrysler_v0_alloc(SubGhzEnvironment* environment) 
 
     SubGhzProtocolDecoderChrysler_V0* instance =
         calloc(1, sizeof(SubGhzProtocolDecoderChrysler_V0));
-    furi_check(instance);
 
     instance->base.protocol = &chrysler_protocol_v0;
     instance->generic.protocol_name = instance->base.protocol->name;
@@ -494,8 +496,6 @@ void* subghz_protocol_decoder_chrysler_v0_alloc(SubGhzEnvironment* environment) 
 }
 
 void subghz_protocol_decoder_chrysler_v0_reset(void* context) {
-    furi_check(context);
-
     SubGhzProtocolDecoderChrysler_V0* instance = context;
     instance->decoder.decode_data = 0;
     instance->data_2 = 0;
@@ -510,8 +510,6 @@ void subghz_protocol_decoder_chrysler_v0_reset(void* context) {
 }
 
 void subghz_protocol_decoder_chrysler_v0_feed(void* context, bool level, uint32_t duration) {
-    furi_check(context);
-
     SubGhzProtocolDecoderChrysler_V0* instance = context;
 
     switch(instance->decoder.parser_step) {
@@ -635,8 +633,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_chrysler_v0_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset) {
-    furi_check(context);
-
     SubGhzProtocolDecoderChrysler_V0* instance = context;
     SubGhzProtocolStatus status =
         subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
@@ -683,8 +679,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_chrysler_v0_serialize(
 
 SubGhzProtocolStatus
     subghz_protocol_decoder_chrysler_v0_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
-
     SubGhzProtocolDecoderChrysler_V0* instance = context;
     SubGhzProtocolStatus status =
         subghz_block_generic_deserialize(&instance->generic, flipper_format);
@@ -732,8 +726,6 @@ SubGhzProtocolStatus
 }
 
 void subghz_protocol_decoder_chrysler_v0_get_string(void* context, FuriString* output) {
-    furi_check(context);
-
     SubGhzProtocolDecoderChrysler_V0* instance = context;
 
     furi_string_cat_printf(

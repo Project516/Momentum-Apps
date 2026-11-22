@@ -66,7 +66,7 @@ const SubGhzProtocolDecoder subghz_protocol_star_line_decoder = {
     .get_string = subghz_protocol_decoder_star_line_get_string,
 };
 
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 const SubGhzProtocolEncoder subghz_protocol_star_line_encoder = {
     .alloc = subghz_protocol_encoder_star_line_alloc,
     .free = subghz_protocol_encoder_star_line_free,
@@ -91,8 +91,20 @@ const SubGhzProtocol subghz_protocol_star_line = {
     .flag = SubGhzProtocolFlag_433 | SubGhzProtocolFlag_AM | SubGhzProtocolFlag_Decodable |
             SubGhzProtocolFlag_Load | SubGhzProtocolFlag_Save | SubGhzProtocolFlag_Send,
 
+#if PROTOPIRATE_WITH_DECODER
+
     .decoder = &subghz_protocol_star_line_decoder,
+
+#else
+
+    .decoder = NULL,
+
+#endif
+#if PROTOPIRATE_WITH_ENCODER
     .encoder = &subghz_protocol_star_line_encoder,
+#else
+    .encoder = NULL,
+#endif
 };
 
 /** 
@@ -105,11 +117,10 @@ static void subghz_protocol_star_line_check_remote_controller(
     SubGhzBlockGeneric* instance,
     SubGhzKeystore* keystore,
     const char** manufacture_name);
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 
 void* subghz_protocol_encoder_star_line_alloc(SubGhzEnvironment* environment) {
-    SubGhzProtocolEncoderStarLine* instance = malloc(sizeof(SubGhzProtocolEncoderStarLine));
-    furi_check(instance);
+    SubGhzProtocolEncoderStarLine* instance = calloc(1, sizeof(SubGhzProtocolEncoderStarLine));
 
     instance->base.protocol = &subghz_protocol_star_line;
     instance->generic.protocol_name = instance->base.protocol->name;
@@ -125,10 +136,9 @@ void* subghz_protocol_encoder_star_line_alloc(SubGhzEnvironment* environment) {
 }
 
 #endif
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 
 void subghz_protocol_encoder_star_line_free(void* context) {
-    furi_check(context);
     SubGhzProtocolEncoderStarLine* instance = context;
     furi_string_free(instance->manufacture_from_file);
     free(instance);
@@ -222,7 +232,6 @@ bool subghz_protocol_star_line_create_data(
     uint16_t cnt,
     const char* manufacture_name,
     SubGhzRadioPreset* preset) {
-    furi_check(context);
     SubGhzProtocolEncoderStarLine* instance = context;
     instance->generic.serial = serial;
     instance->generic.cnt = cnt;
@@ -241,12 +250,10 @@ bool subghz_protocol_star_line_create_data(
  * @param instance Pointer to a SubGhzProtocolEncoderKeeloq instance
  * @return true On success
  */
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 static bool subghz_protocol_encoder_star_line_get_upload(
     SubGhzProtocolEncoderStarLine* instance,
     uint8_t btn) {
-    furi_check(instance);
-
     // Gen new key
     if(!subghz_protocol_star_line_gen_data(instance, btn)) {
         return false;
@@ -278,7 +285,7 @@ static bool subghz_protocol_encoder_star_line_get_upload(
 }
 
 #endif
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 
 static SubGhzProtocolStatus subghz_protocol_encoder_star_line_serialize(
     SubGhzProtocolEncoderStarLine* instance,
@@ -333,11 +340,10 @@ static SubGhzProtocolStatus subghz_protocol_encoder_star_line_serialize(
 }
 
 #endif
-#ifdef ENABLE_EMULATE_FEATURE
+#if PROTOPIRATE_WITH_ENCODER
 
 SubGhzProtocolStatus
     subghz_protocol_encoder_star_line_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
     SubGhzProtocolEncoderStarLine* instance = context;
 
     if(pp_verify_protocol_name(flipper_format, instance->base.protocol->name) !=
@@ -391,7 +397,6 @@ SubGhzProtocolStatus
 #endif
 void* subghz_protocol_decoder_star_line_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolDecoderStarLine* instance = malloc(sizeof(SubGhzProtocolDecoderStarLine));
-    furi_check(instance);
     instance->base.protocol = &subghz_protocol_star_line;
     instance->generic.protocol_name = instance->base.protocol->name;
 
@@ -403,7 +408,6 @@ void* subghz_protocol_decoder_star_line_alloc(SubGhzEnvironment* environment) {
 }
 
 void subghz_protocol_decoder_star_line_free(void* context) {
-    furi_check(context);
     SubGhzProtocolDecoderStarLine* instance = context;
     furi_string_free(instance->manufacture_from_file);
 
@@ -411,7 +415,6 @@ void subghz_protocol_decoder_star_line_free(void* context) {
 }
 
 void subghz_protocol_decoder_star_line_reset(void* context) {
-    furi_check(context);
     SubGhzProtocolDecoderStarLine* instance = context;
     instance->decoder.parser_step = StarLineDecoderStepReset;
     // TODO
@@ -420,7 +423,6 @@ void subghz_protocol_decoder_star_line_reset(void* context) {
 }
 
 void subghz_protocol_decoder_star_line_feed(void* context, bool level, uint32_t duration) {
-    furi_check(context);
     SubGhzProtocolDecoderStarLine* instance = context;
 
     switch(instance->decoder.parser_step) {
@@ -528,7 +530,6 @@ static inline bool subghz_protocol_star_line_check_decrypt(
     uint32_t decrypt,
     uint8_t btn,
     uint32_t end_serial) {
-    furi_check(instance);
     if((decrypt >> 24 == btn) && ((((uint16_t)(decrypt >> 16)) & 0x00FF) == end_serial)) {
         instance->cnt = decrypt & 0x0000FFFF;
         return true;
@@ -681,7 +682,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_star_line_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset) {
-    furi_check(context);
     SubGhzProtocolDecoderStarLine* instance = context;
     subghz_protocol_star_line_check_remote_controller(
         &instance->generic, instance->keystore, &instance->manufacture_name);
@@ -748,7 +748,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_star_line_serialize(
 
 SubGhzProtocolStatus
     subghz_protocol_decoder_star_line_deserialize(void* context, FlipperFormat* flipper_format) {
-    furi_check(context);
     SubGhzProtocolDecoderStarLine* instance = context;
     SubGhzProtocolStatus ret = SubGhzProtocolStatusError;
 
@@ -824,7 +823,6 @@ SubGhzProtocolStatus
 }
 
 void subghz_protocol_decoder_star_line_get_string(void* context, FuriString* output) {
-    furi_check(context);
     SubGhzProtocolDecoderStarLine* instance = context;
 
     subghz_protocol_star_line_check_remote_controller(

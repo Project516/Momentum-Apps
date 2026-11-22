@@ -68,6 +68,7 @@ enum MassStorageCustomEvent {
     MassStorageCustomEventReserved = 100,
 
     MassStorageCustomEventEject,
+    MassStorageCustomEventConnectionError,
 };
 
 void mass_storage_app_show_loading_popup(MassStorageApp* app, bool show);

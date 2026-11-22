@@ -1,5 +1,69 @@
 # Changelog
 
+## v1.9.1
+
+- Stripped terminal color/control codes from text and logs.
+- Reduced capture memory use; preserved log history.
+- Fixed CSV/PCAP framing, switching and final flushes.
+- Fixed UART races and excessive log syncing; report RX loss.
+- Synced app version displays.
+
+## v1.9.0
+
+### Added
+
+- New WiFi attacks: Handshake + Deauth, Channel Switch, Probe Flood, Bad Msg, Auth Flood, and GTK Abuse
+- WiFi Packet Capture: List Saved PCAPs, Export PCAP to hc22000, and Sniff 802.15.4
+- WiFi Recon Tools: Enum Scan, Name Sniff, and channel hop plan controls
+- DNS Sinkhole submenu under WiFi Network
+- Trackers & Beacons submenu under BLE Scanning
+- BLE Spam Detector, OUI/vendor advertiser scans, and a custom AirPods spam name
+- Govee Scan, Govee Control, and Wake-on-LAN under WiFi Network > IoT Control
+- Forget Saved WiFi and Auto-Reconnect under WiFi Network > WiFi Connection
+- GhostScript list/run/status/stop commands under WiFi Settings > Device & Debug
+- Start Flipper Portal, for launching the HTML uploaded with Set Evil Portal HTML
+
+### Changed
+
+- Menus reordered to put common actions first
+- Stop Deauth/SAE/EAPOL renamed to Stop All Attacks
+- Evil Portal prompt now explains that `default` serves the uploaded HTML
+- IR Dazzler now asks for confirmation before starting
+- App size reduced by ~8 KB
+
+### Fixed
+
+- Set Evil Portal HTML no longer truncates or drops long/minified pages
+- Connect To WiFi no longer asks for the password twice or sends it as the SSID
+
+## v1.8.3
+
+- Fixed IR remote and universal button lists showing only some entries (or needing the view to be reopened) by waiting for the complete ESP reply before parsing
+
+## v1.8.2
+
+- Reduced IR memory usage with independently allocated, dynamically growing catalogs
+
+## v1.8.1
+
+- Fixed wardrive CSV captures writing zero-byte files
+- Fixed back navigation landing on the main menu instead of the correct submenu after returning from log/text-input/confirmation views
+
+## v1.8.0
+
+- Added NetBIOS Scan, HTTP Banner Scan, SNMP Probe, and WPA3 Compliance Check commands to WiFi Scanning menu
+- Added WiFi Status and WebUI AP commands to WiFi Network menu
+- Added Show Time, Coredump Dump, Erase Coredump, Load Config, Identify Device, and Force Crash commands to WiFi Settings menu
+- Added Scan Advertisers, List Advertisers, and BLE Bridge commands to BLE Scanning menu
+- Added Set GPS Baud, WiGLE Auto Upload, and WiGLE Donate commands to GPS menu
+- Reorganized WiFi Settings menu into 5 sub-category menus: LED & RGB, SD Card, Settings Mgmt, Device & Debug, Misc
+- Reorganized WiFi Network menu into 5 sub-category menus: Evil Portal, WiFi Connection, Network Scan, IoT Control, WebUI
+- Reorganized BLE Scanning menu into 4 sub-category menus: Flipper & Skimmer, AirTag, GATT, Advertisers & Traffic
+- Reorganized GPS menu into 2 sub-category menus: GPS Config, Wardriving
+- Moved network reconnaissance commands (Scan Local Network, Scan Ports, ARP Scan, Scan SSH, NetBIOS Scan, HTTP Banner Scan, SNMP Probe) from WiFi Scanning to WiFi Network > Network Scan sub-category
+- Removed duplicate Chip Info entry that appeared at both index 2 and index 23 in the old WiFi Settings flat menu
+- Added 16 new ViewId enums, Submenu pointers, and navigation logic to support the sub-category menu hierarchy
+
 ## v1.7.0
 
 - Fixed cancel button in confirmation dialogs returning to main menu instead of the correct sub-menu
