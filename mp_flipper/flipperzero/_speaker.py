@@ -1,4 +1,4 @@
-"""
+'''
 Python script for notes generation
 
 # coding: utf-8
@@ -17,10 +17,10 @@ for octave in range(9):
         print('.. versionchanged:: 1.7.0')
         print('   The constant is replaced by a delegator function.')
         print('\'\'\'\n')
-"""
+'''
 
 SPEAKER_NOTE_C0: float
-"""
+'''
 The musical note C\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -29,7 +29,7 @@ The musical note C\ :sub:`0` as frequency in `Hz`.
 '''
 
 SPEAKER_NOTE_CS0: float
-"""
+'''
 The musical note C#\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -38,7 +38,7 @@ The musical note C#\ :sub:`0` as frequency in `Hz`.
 '''
 
 SPEAKER_NOTE_D0: float
-"""
+'''
 The musical note D\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -47,7 +47,7 @@ The musical note D\ :sub:`0` as frequency in `Hz`.
 '''
 
 SPEAKER_NOTE_DS0: float
-"""
+'''
 The musical note D#\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -56,7 +56,7 @@ The musical note D#\ :sub:`0` as frequency in `Hz`.
 '''
 
 SPEAKER_NOTE_E0: float
-"""
+'''
 The musical note E\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -65,7 +65,7 @@ The musical note E\ :sub:`0` as frequency in `Hz`.
 '''
 
 SPEAKER_NOTE_F0: float
-"""
+'''
 The musical note F\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -74,7 +74,7 @@ The musical note F\ :sub:`0` as frequency in `Hz`.
 '''
 
 SPEAKER_NOTE_FS0: float
-"""
+'''
 The musical note F#\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -83,7 +83,7 @@ The musical note F#\ :sub:`0` as frequency in `Hz`.
 '''
 
 SPEAKER_NOTE_G0: float
-"""
+'''
 The musical note G\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -92,7 +92,7 @@ The musical note G\ :sub:`0` as frequency in `Hz`.
 '''
 
 SPEAKER_NOTE_GS0: float
-"""
+'''
 The musical note G#\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -101,7 +101,7 @@ The musical note G#\ :sub:`0` as frequency in `Hz`.
 '''
 
 SPEAKER_NOTE_A0: float
-"""
+'''
 The musical note A\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -110,7 +110,7 @@ The musical note A\ :sub:`0` as frequency in `Hz`.
 '''
 
 SPEAKER_NOTE_AS0: float
-"""
+'''
 The musical note A#\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -119,7 +119,7 @@ The musical note A#\ :sub:`0` as frequency in `Hz`.
 '''
 
 SPEAKER_NOTE_B0: float
-"""
+'''
 The musical note B\ :sub:`0` as frequency in `Hz`.
 
 .. versionadded:: 1.2.0
@@ -992,22 +992,21 @@ The musical note B\ :sub:`8` as frequency in `Hz`.
 '''
 
 SPEAKER_VOLUME_MIN: float
-"""
+'''
 The minimal volume value.
 
 .. versionadded:: 1.2.0
-"""
+'''
 
 SPEAKER_VOLUME_MAX: float
-"""
+'''
 The maximum volume value.
 
 .. versionadded:: 1.2.0
-"""
-
+'''
 
 def speaker_start(frequency: float, volume: float) -> bool:
-    """
+    '''
     Output a steady tone of a defined frequency and volume on the Flipper's speaker.
     This is a non-blocking operation. The tone will continue until you call :func:`speaker_stop`.
     The ``volume`` parameter accepts values from :py:const:`SPEAKER_VOLUME_MIN` (silent) up to :py:const:`SPEAKER_VOLUME_MAX` (very loud).
@@ -1019,20 +1018,19 @@ def speaker_start(frequency: float, volume: float) -> bool:
     .. versionadded:: 1.0.0
 
     .. code-block::
-
+        
         import flipperzero as f0
-
+        
         f0.speaker_start(50.0, 0.8)
-    """
+    '''
     pass
 
-
 def speaker_set_volume(volume: float) -> bool:
-    """
+    '''
     Set the speaker's volume while playing a tone. This is a non-blocking operation.
     The tone will continue until you call :func:`speaker_stop`.
     The ``volume`` parameter accepts values from 0.0 (silent) up to 1.0 (very loud).
-
+    
     :param volume: The volume to use.
     :returns: :const:`True` if the speaker was acquired.
 
@@ -1044,7 +1042,7 @@ def speaker_set_volume(volume: float) -> bool:
 
         import time
         import flipperzero as f0
-
+        
         volume = 0.8
 
         f0.speaker_start(100.0, volume)
@@ -1055,18 +1053,17 @@ def speaker_set_volume(volume: float) -> bool:
             f0.speaker_set_volume(volume)
 
             time.sleep_ms(1)
-
+        
         f0.speaker_stop()
-    """
+    '''
     pass
 
-
 def speaker_stop() -> bool:
-    """
+    '''
     Stop the speaker output.
 
     :returns: :const:`True` if the speaker was successfully released.
 
     .. versionadded:: 1.0.0
-    """
+    '''
     pass
