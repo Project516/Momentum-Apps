@@ -17,7 +17,6 @@
 #include <toolbox/saved_struct.h>
 
 #include <infrared/infrared_settings.h>
-#include <toolbox/saved_struct.h>
 
 #define TAG "XRemote"
 
@@ -139,8 +138,7 @@ int32_t xremote_main(void* p) {
     view_dispatcher_run(app->app_ctx->view_dispatcher);
 
     /* Restore infrared settings and OTG state */
-    if(infra_settings_loaded)
-        xremote_infra_settings_restore(is_otg_enabled);
+    if(infra_settings_loaded) xremote_infra_settings_restore(is_otg_enabled);
 
     /* Cleanup and exit */
     xremote_app_free(app);
