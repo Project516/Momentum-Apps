@@ -3171,7 +3171,7 @@ static bool handle_ir_command_feedback_ex(
                        strstr(p, " raw ") || strstr(p, " raw len=")) {
                         if(sscanf(
                                line,
-                               "IR: signal raw len=%15s freq=%31s duty=%15s",
+                               "IR: signal raw len=%7s freq=%23s duty=%15s",
                                len_str,
                                freq_str,
                                duty_str) == 3) {

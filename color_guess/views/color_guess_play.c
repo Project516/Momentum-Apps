@@ -159,7 +159,7 @@ void color_guess_play_draw(Canvas* canvas, ColorGuessPlayModel* model) {
     uint32_t time_elapsed = timestamp - model->timestamp_start;
     model->time_spent = time_elapsed;
 
-    char closeness_string[4];
+    char closeness_string[CLOSENESS_LENGTH];
 
     parse_time_str(timer_string, time_elapsed);
     snprintf(closeness_string, CLOSENESS_LENGTH, CLOSENESS_FORMAT, model->closeness);
