@@ -48,7 +48,7 @@ static void infrared_settings_repeat_changed(VariableItem* item) {
     char repeat_str[8];
 
     settings->repeat_count = variable_item_get_current_value_index(item);
-    if (settings->repeat_count == 0) {
+    if(settings->repeat_count == 0) {
         settings->repeat_count = 1;
         variable_item_set_current_value_index(item, 1);
     }
@@ -160,6 +160,7 @@ static void xremote_settings_context_clear_callback(void* context) {
     ViewDispatcher* view_disp = ctx->app_ctx->view_dispatcher;
     view_dispatcher_remove_view(view_disp, XRemoteViewSettings);
     variable_item_list_free(ctx->item_list);
+    free(ctx);
 }
 
 XRemoteApp* xremote_settings_alloc(XRemoteAppContext* app_ctx) {
